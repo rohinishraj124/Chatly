@@ -8,7 +8,7 @@ import { formatMessageTime } from "../lib/utils";
 import { MessageSquareText, Clock, Ban, UserPlus } from "lucide-react";
 import { axiosInstance } from "../lib/axios";
 
-// ✅ Modular state UI for non-chat views
+// ✅ Modular state UI for non-chat views (keep this as is)
 const CenteredState = ({
   icon: Icon,
   title,
@@ -17,7 +17,6 @@ const CenteredState = ({
   iconColor = "text-base-content/30",
   onBack,
 }) => (
-
   <div className="flex-1 bg-base-100">
     <ChatHeader />
     <div className="relative h-full flex flex-col items-center justify-center text-center animate-fade-in max-w-sm mx-auto px-4 mt-32">
@@ -61,10 +60,12 @@ const ChatContainer = () => {
 
   useEffect(() => {
     if (messageEndRef.current && messages.length > 0) {
+      // Ensure smooth scroll to the end of messages
       messageEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [messages]);
 
+  // --- Conditional Renders for Chat Status (keep as is) ---
   if (!selectedUser) {
     return (
       <CenteredState
@@ -176,18 +177,25 @@ const ChatContainer = () => {
       <div className="flex-1 flex flex-col">
         <ChatHeader />
         <MessageSkeleton />
-        <MessageInput />
+        {/* MessageInput still needed here to maintain layout during loading */}
+        <div className="bg-base-100 border-t border-base-300">
+            <MessageInput />
+        </div>
       </div>
     );
   }
 
-  const inputHeightPadding = "pb-[4.5rem] sm:pb-[5.5rem]";
-
+  // --- Main Chat Layout ---
   return (
-    <div className="flex-1 flex flex-col relative bg-base-100">
+    // This div needs to be a flex column and take up available height
+    // Ensure its parent also allows it to take full height (e.g., h-screen, flex-1 in a parent flex container)
+    <div className="flex-1 flex flex-col bg-base-100 h-full">
       <ChatHeader />
+
+      {/* This is the scrollable chat messages area */}
       <div
-        className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 custom-scrollbar ${inputHeightPadding} min-h-[78vh]`}
+        className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 custom-scrollbar`}
+        // Removed the 'inputHeightPadding' class here
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-base-content/50 text-center">
@@ -247,9 +255,11 @@ const ChatContainer = () => {
             );
           })
         )}
-        <div ref={messageEndRef} className="pt-8" />
+        <div ref={messageEndRef} className="pt-8" /> {/* Keep this for scroll target */}
       </div>
-      <div className="absolute bottom-0 left-0 w-full bg-base-100 border-t border-base-300">
+
+      {/* MessageInput area - now part of the flex column, not absolutely positioned */}
+      <div className="bg-base-100 border-t border-base-300">
         <MessageInput />
       </div>
     </div>
