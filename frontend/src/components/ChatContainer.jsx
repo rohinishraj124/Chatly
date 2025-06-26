@@ -1,12 +1,24 @@
 import { useChatStore } from "../store/useChatStore";
 import { useEffect, useRef } from "react";
-
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, Clock, Ban, UserPlus } from "lucide-react";
+import { axiosInstance } from "../lib/axios";
+
+// ✅ Center wrapper for all non-chat states
+const CenteredState = ({ icon: Icon, title, subtitle, children, iconColor = "text-base-content/30" }) => (
+  <div className="flex-1 bg-base-100 mt-[20em]">
+    <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in max-w-sm mx-auto px-4">
+      <Icon className={`w-16 h-16 mb-4 ${iconColor}`} />
+      <h2 className="text-lg font-semibold text-base-content mb-1">{title}</h2>
+      <p className="text-sm text-base-content/50 mb-4">{subtitle}</p>
+      {children}
+    </div>
+  </div>
+);
 
 const ChatContainer = () => {
   const {
@@ -16,8 +28,13 @@ const ChatContainer = () => {
     selectedUser,
     subscribeToMessages,
     unsubscribeFromMessages,
+    chatPermissionStatus,
+    sendChatRequest,
+    isRequestSender,
+    setChatPermissionStatus,
   } = useChatStore();
-  const { authUser } = useAuthStore();
+
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
 
   useEffect(() => {
@@ -25,19 +42,120 @@ const ChatContainer = () => {
       getMessages(selectedUser._id);
       subscribeToMessages();
     }
-
     return () => {
       if (selectedUser?._id) {
         unsubscribeFromMessages();
       }
     };
-  }, [selectedUser?._id, getMessages, subscribeToMessages, unsubscribeFromMessages]);
+  }, [selectedUser?._id]);
 
   useEffect(() => {
-    if (messageEndRef.current && messages && messages.length > 0) {
+    if (messageEndRef.current && messages.length > 0) {
       messageEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [messages]);
+
+  if (!selectedUser) {
+    return (
+      <CenteredState
+        icon={MessageSquareText}
+        title="Select a chat"
+        subtitle="Choose a user to start messaging."
+      />
+    );
+  }
+
+  if (chatPermissionStatus === "pending") {
+    return isRequestSender ? (
+      <CenteredState
+        icon={Clock}
+        title="Waiting for approval"
+        subtitle="You can't chat until your request is accepted."
+        iconColor="text-yellow-500"
+      />
+    ) : (
+      <CenteredState
+        icon={UserPlus}
+        title="Chat request received"
+        subtitle={`Respond to ${selectedUser.fullName}'s request to start chatting.`}
+        iconColor="text-primary"
+      >
+        <div className="flex gap-4 justify-center">
+          <button
+            onClick={async () => {
+              try {
+                await axiosInstance.post("/chat-request/respond", {
+                  sender: selectedUser.email,
+                  receiver: authUser.email,
+                  response: "accepted",
+                });
+                setChatPermissionStatus("accepted");
+                socket?.emit("chat_request_responded", {  
+                  toUserId: selectedUser._id,
+                  response: "accepted",
+                });
+              } catch (error) {
+                console.error("Accept error:", error);
+              }
+            }}
+            className="btn btn-success btn-sm"
+          >
+            Accept
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await axiosInstance.post("/chat-request/respond", {
+                  sender: selectedUser.email,
+                  receiver: authUser.email,
+                  response: "rejected",
+                });
+                setChatPermissionStatus("rejected");
+                socket?.emit("chat_request_responded", {
+                  toUserId: selectedUser._id,
+                  response: "rejected",
+                });
+              } catch (error) {
+                console.error("Reject error:", error);
+              }
+            }}
+            className="btn btn-error btn-sm"
+          >
+            Reject
+          </button>
+        </div>
+      </CenteredState>
+    );
+  }
+
+  if (chatPermissionStatus === "rejected") {
+    return (
+      <CenteredState
+        icon={Ban}
+        title="Request Rejected"
+        subtitle="This user has declined your chat request."
+        iconColor="text-red-500"
+      />
+    );
+  }
+
+  if (chatPermissionStatus !== "accepted") {
+    return (
+      <CenteredState
+        icon={UserPlus}
+        title="Send a chat request"
+        subtitle={`Start chatting with ${selectedUser.fullName}`}
+        iconColor="text-base-content/40"
+      >
+        <button
+          onClick={() => sendChatRequest(authUser.email, selectedUser.email)}
+          className="btn btn-primary btn-sm"
+        >
+          Send Request
+        </button>
+      </CenteredState>
+    );
+  }
 
   if (isMessagesLoading) {
     return (
@@ -49,33 +167,18 @@ const ChatContainer = () => {
     );
   }
 
-  if (!selectedUser) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-base-100">
-        <MessageSquareText className="w-24 h-24 text-base-content/30 mb-4" />
-        <p className="text-xl text-base-content/60">Select a chat to start messaging</p>
-      </div>
-    );
-  }
-
-  // Calculate padding dynamically based on MessageInput height to prevent content from being hidden
-  // The MessageInput has a default height due to input-md and btn-circle size-10 classes.
-  // p-3 (12px) + 2*p-4 (16px) for image preview + input height (40px) = 12+16+40 = 68px approx
-  // sm:p-4 (16px) + 2*p-4 (16px) for image preview + input height (40px) = 16+16+40 = 72px approx
-  // Added a little extra for good measure to ensure full visibility.
-  const inputHeightPadding = "pb-[4.5rem] sm:pb-[5.5rem]"; // Using rem for better responsiveness
+  const inputHeightPadding = "pb-[4.5rem] sm:pb-[5.5rem]";
 
   return (
-    <div className="flex-1 flex flex-col relative">
+    <div className="flex-1 flex flex-col relative bg-base-100">
       <ChatHeader />
-
       <div className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 custom-scrollbar ${inputHeightPadding} min-h-[78vh]`}>
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-base-content/50">
+          <div className="flex flex-col items-center justify-center h-full text-base-content/50 text-center">
             <MessageSquareText className="w-16 h-16 sm:w-20 sm:h-20 mb-3 sm:mb-4" />
-            <p className="text-base sm:text-lg">Say hello!</p>
-            <p className="text-xs sm:text-sm text-center max-w-xs">
-              No messages yet with {selectedUser.fullName}. Start a conversation!
+            <h3 className="text-base sm:text-lg">No messages yet</h3>
+            <p className="text-xs sm:text-sm text-base-content/40 max-w-xs">
+              Start the conversation with <strong>{selectedUser.fullName}</strong>
             </p>
           </div>
         ) : (
@@ -91,13 +194,12 @@ const ChatContainer = () => {
                 className={`chat ${isSentByAuthUser ? "chat-end" : "chat-start"} items-end gap-1 sm:gap-1.5`}
               >
                 <div className="chat-image avatar flex-shrink-0">
-                  <div className="size-6 sm:size-7 md:size-9 rounded-full border border-base-300 overflow-hidden">
+                  <div className="size-7 sm:size-8 md:size-10 rounded-full border border-base-300 overflow-hidden">
                     <img src={profilePic} alt="profile pic" className="object-cover w-full h-full" />
                   </div>
                 </div>
 
-                <div className={`chat-bubble relative group ${isSentByAuthUser ? "bg-primary text-primary-content" : "bg-base-300 text-base-content"} shadow-md rounded-lg p-2 sm:p-2.5 break-words
-                  max-w-[calc(100%-3rem)] sm:max-w-[calc(100%-3.5rem)] md:max-w-[75%]`}>
+                <div className={`chat-bubble relative group ${isSentByAuthUser ? "bg-primary text-primary-content" : "bg-base-300 text-base-content"} shadow-md rounded-lg p-2 sm:p-2.5 break-words max-w-[calc(100%-3rem)] sm:max-w-[calc(100%-3.5rem)] md:max-w-[75%]`}>
                   {message.image && (
                     <img
                       src={message.image}
@@ -107,9 +209,10 @@ const ChatContainer = () => {
                     />
                   )}
                   {message.text && <p className="text-xs sm:text-sm">{message.text}</p>}
-                  {/* Timestamp - Adjusted bottom offset and font size */}
-                  <time className="absolute -bottom-2 sm:-bottom-3 text-[0.6rem] sm:text-[0.65rem] opacity-60 transition-opacity duration-300 group-hover:opacity-100 -my-2 mx-2 " // <-- CHANGED
-                        style={isSentByAuthUser ? { right: '0.2rem' } : { left: '0.2rem' }}> {/* <-- CHANGED */}
+                  <time
+                    className="absolute -bottom-2 sm:-bottom-3 text-[0.6rem] sm:text-[0.65rem] opacity-60 transition-opacity duration-300 group-hover:opacity-100 -my-2 mx-2"
+                    style={isSentByAuthUser ? { right: '0.2rem' } : { left: '0.2rem' }}
+                  >
                     {formatMessageTime(message.createdAt)}
                   </time>
                 </div>
@@ -119,11 +222,11 @@ const ChatContainer = () => {
         )}
         <div ref={messageEndRef} className="pt-8" />
       </div>
-
       <div className="absolute bottom-0 left-0 w-full bg-base-100 border-t border-base-300">
         <MessageInput />
       </div>
     </div>
   );
 };
+
 export default ChatContainer;
