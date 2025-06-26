@@ -8,10 +8,19 @@ import { formatMessageTime } from "../lib/utils";
 import { MessageSquareText, Clock, Ban, UserPlus } from "lucide-react";
 import { axiosInstance } from "../lib/axios";
 
-// ✅ Center wrapper for all non-chat states
-const CenteredState = ({ icon: Icon, title, subtitle, children, iconColor = "text-base-content/30" }) => (
-  <div className="flex-1 bg-base-100 mt-[20em]">
-    <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in max-w-sm mx-auto px-4">
+// ✅ Modular state UI for non-chat views
+const CenteredState = ({
+  icon: Icon,
+  title,
+  subtitle,
+  children,
+  iconColor = "text-base-content/30",
+  onBack,
+}) => (
+
+  <div className="flex-1 bg-base-100">
+    <ChatHeader />
+    <div className="relative h-full flex flex-col items-center justify-center text-center animate-fade-in max-w-sm mx-auto px-4 mt-32">
       <Icon className={`w-16 h-16 mb-4 ${iconColor}`} />
       <h2 className="text-lg font-semibold text-base-content mb-1">{title}</h2>
       <p className="text-sm text-base-content/50 mb-4">{subtitle}</p>
@@ -32,6 +41,7 @@ const ChatContainer = () => {
     sendChatRequest,
     isRequestSender,
     setChatPermissionStatus,
+    setSelectedUser,
   } = useChatStore();
 
   const { authUser, socket } = useAuthStore();
@@ -72,6 +82,7 @@ const ChatContainer = () => {
         title="Waiting for approval"
         subtitle="You can't chat until your request is accepted."
         iconColor="text-yellow-500"
+        onBack={() => setSelectedUser(null)}
       />
     ) : (
       <CenteredState
@@ -79,6 +90,7 @@ const ChatContainer = () => {
         title="Chat request received"
         subtitle={`Respond to ${selectedUser.fullName}'s request to start chatting.`}
         iconColor="text-primary"
+        onBack={() => setSelectedUser(null)}
       >
         <div className="flex gap-4 justify-center">
           <button
@@ -90,7 +102,7 @@ const ChatContainer = () => {
                   response: "accepted",
                 });
                 setChatPermissionStatus("accepted");
-                socket?.emit("chat_request_responded", {  
+                socket?.emit("chat_request_responded", {
                   toUserId: selectedUser._id,
                   response: "accepted",
                 });
@@ -135,6 +147,7 @@ const ChatContainer = () => {
         title="Request Rejected"
         subtitle="This user has declined your chat request."
         iconColor="text-red-500"
+        onBack={() => setSelectedUser(null)}
       />
     );
   }
@@ -146,6 +159,7 @@ const ChatContainer = () => {
         title="Send a chat request"
         subtitle={`Start chatting with ${selectedUser.fullName}`}
         iconColor="text-base-content/40"
+        onBack={() => setSelectedUser(null)}
       >
         <button
           onClick={() => sendChatRequest(authUser.email, selectedUser.email)}
@@ -172,7 +186,9 @@ const ChatContainer = () => {
   return (
     <div className="flex-1 flex flex-col relative bg-base-100">
       <ChatHeader />
-      <div className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 custom-scrollbar ${inputHeightPadding} min-h-[78vh]`}>
+      <div
+        className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 custom-scrollbar ${inputHeightPadding} min-h-[78vh]`}
+      >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-base-content/50 text-center">
             <MessageSquareText className="w-16 h-16 sm:w-20 sm:h-20 mb-3 sm:mb-4" />
@@ -195,23 +211,34 @@ const ChatContainer = () => {
               >
                 <div className="chat-image avatar flex-shrink-0">
                   <div className="size-7 sm:size-8 md:size-10 rounded-full border border-base-300 overflow-hidden">
-                    <img src={profilePic} alt="profile pic" className="object-cover w-full h-full" />
+                    <img
+                      src={profilePic}
+                      alt="profile pic"
+                      className="object-cover w-full h-full"
+                    />
                   </div>
                 </div>
 
-                <div className={`chat-bubble relative group ${isSentByAuthUser ? "bg-primary text-primary-content" : "bg-base-300 text-base-content"} shadow-md rounded-lg p-2 sm:p-2.5 break-words max-w-[calc(100%-3rem)] sm:max-w-[calc(100%-3.5rem)] md:max-w-[75%]`}>
+                <div
+                  className={`chat-bubble relative group ${isSentByAuthUser
+                    ? "bg-primary text-primary-content"
+                    : "bg-base-300 text-base-content"
+                    } shadow-md rounded-lg p-2 sm:p-2.5 break-words max-w-[calc(100%-3rem)] sm:max-w-[calc(100%-3.5rem)] md:max-w-[75%]`}
+                >
                   {message.image && (
                     <img
                       src={message.image}
                       alt="Attachment"
                       className="max-w-[120px] sm:max-w-[150px] md:max-w-[200px] rounded-md mb-1 sm:mb-1.5 object-cover aspect-video cursor-pointer transition-transform duration-200 hover:scale-105"
-                      onClick={() => window.open(message.image, '_blank')}
+                      onClick={() => window.open(message.image, "_blank")}
                     />
                   )}
-                  {message.text && <p className="text-xs sm:text-sm">{message.text}</p>}
+                  {message.text && (
+                    <p className="text-xs sm:text-sm">{message.text}</p>
+                  )}
                   <time
                     className="absolute -bottom-2 sm:-bottom-3 text-[0.6rem] sm:text-[0.65rem] opacity-60 transition-opacity duration-300 group-hover:opacity-100 -my-2 mx-2"
-                    style={isSentByAuthUser ? { right: '0.2rem' } : { left: '0.2rem' }}
+                    style={isSentByAuthUser ? { right: "0.2rem" } : { left: "0.2rem" }}
                   >
                     {formatMessageTime(message.createdAt)}
                   </time>
