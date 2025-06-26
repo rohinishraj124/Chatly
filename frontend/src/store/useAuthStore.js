@@ -18,11 +18,9 @@ export const useAuthStore = create((set, get) => ({
   checkAuth: async () => {
     try {
       const res = await axiosInstance.get("/auth/check");
-
       set({ authUser: res.data });
       get().connectSocket();
     } catch (error) {
-      console.log("Error in checkAuth:", error);
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
@@ -49,7 +47,6 @@ export const useAuthStore = create((set, get) => ({
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data });
       toast.success("Logged in successfully");
-
       get().connectSocket();
     } catch (error) {
       toast.error(error.response.data.message);
@@ -61,9 +58,9 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     try {
       await axiosInstance.post("/auth/logout");
+      get().disconnectSocket();
       set({ authUser: null });
       toast.success("Logged out successfully");
-      get().disconnectSocket();
     } catch (error) {
       toast.error(error.response.data.message);
     }
@@ -76,7 +73,6 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       toast.success("Profile updated successfully");
     } catch (error) {
-      console.log("error in update profile:", error);
       toast.error(error.response.data.message);
     } finally {
       set({ isUpdatingProfile: false });
@@ -84,41 +80,58 @@ export const useAuthStore = create((set, get) => ({
   },
 
   connectSocket: () => {
-    const { authUser } = get();
-    if (!authUser || get().socket?.connected) return;
+    const { authUser, socket } = get();
+    if (!authUser || socket?.connected) return;
 
-    const socket = io(BASE_URL, {
+    const newSocket = io(BASE_URL, {
       query: {
         userId: authUser._id,
       },
     });
-    socket.connect();
 
-    set({ socket: socket });
+    newSocket.connect();
+    set({ socket: newSocket });
 
-    socket.on("getOnlineUsers", (userIds) => {
+    newSocket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
     });
 
-    socket.on("chat_request_received", () => {
+    newSocket.on("chat_request_received", () => {
       const selectedUser = useChatStore.getState().selectedUser;
+      const { email } = authUser;
+
       if (selectedUser) {
-        useChatStore.getState().checkChatPermissionStatus(
-          authUser.email,
-          selectedUser.email
-        );
+        useChatStore.getState().checkChatPermissionStatus(email, selectedUser.email);
       }
+
+      toast("📩 You have a new chat request!");
     });
 
-    socket.on("chat_request_response", (response) => {
+    newSocket.on("chat_request_response", (response) => {
       const selectedUser = useChatStore.getState().selectedUser;
       if (selectedUser) {
         useChatStore.getState().setChatPermissionStatus(response);
       }
+
+      toast.success(`Your chat request was ${response}`);
+    });
+
+    newSocket.on("message_received", (message) => {
+      const selectedUser = useChatStore.getState().selectedUser;
+
+      if (selectedUser?._id === message.senderId) {
+        useChatStore.getState().getMessages(message.senderId);
+      }
+
+      toast("✉️ New message received!");
     });
   },
 
   disconnectSocket: () => {
-    if (get().socket?.connected) get().socket.disconnect();
+    const socket = get().socket;
+    if (socket?.connected) {
+      socket.disconnect();
+      set({ socket: null });
+    }
   },
 }));

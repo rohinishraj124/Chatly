@@ -31,7 +31,6 @@ io.on("connection", (socket) => {
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
 
-  // 🔄 Chat Request Sent
   socket.on("chat_request_sent", ({ toUserId }) => {
     const receiverSocketId = getReceiverSocketId(toUserId);
     if (receiverSocketId) {
@@ -39,11 +38,17 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ Chat Request Responded
   socket.on("chat_request_responded", ({ toUserId, response }) => {
     const senderSocketId = getReceiverSocketId(toUserId);
     if (senderSocketId) {
       io.to(senderSocketId).emit("chat_request_response", response);
+    }
+  });
+
+  socket.on("send_message", ({ toUserId, message }) => {
+    const receiverSocketId = getReceiverSocketId(toUserId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("message_received", message);
     }
   });
 });
