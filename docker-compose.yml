@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: chatly-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/usr/src/app
+    environment:
+      - NODE_ENV=production
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: chatly-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    restart: always
