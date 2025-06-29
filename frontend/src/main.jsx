@@ -1,14 +1,21 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import "./index.css";
-import App from "./App.jsx";
+import { useEffect, useState } from "react";
 
-import { BrowserRouter } from "react-router-dom";
+function App() {
+  const [message, setMessage] = useState("Loading...");
 
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>
-);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api`)
+      .then((res) => res.json())
+      .then((data) => setMessage(data.message))
+      .catch(() => setMessage("Failed to connect to backend"));
+  }, []);
+
+  return (
+    <div className="p-4 text-center">
+      <h1 className="text-2xl font-bold">{message}</h1>
+    </div>
+  );
+}
+
+export default App;
+
